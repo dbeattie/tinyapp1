@@ -1,0 +1,4 @@
+ps aux | grep node
+look for the pid of the running process
+
+kill -9 <pid of running process>
