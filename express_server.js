@@ -11,16 +11,19 @@ function generateRandomString() {
   return Math.random().toString(36).substring(2, 5) + Math.random().toString(36).substring(2, 5);
 }
 
+//THIS IS THE DATA
 const urlDatabase = {
   "b2xVn2": "http://www.lighthouselabs.ca",
   "9sm5xK": "http://www.google.com"
 };
+
 
 app.get("/urls", (req, res) => {
   let templateVars = { urls: urlDatabase };
   res.render("urls_index", templateVars);
 });
 
+//RENDERS urls_new template
 app.get("/urls/new", (req, res) => {
   res.render("urls_new");
 });
@@ -39,21 +42,29 @@ app.get("/urls/:shortURL", (req, res) => {
 });
 
 app.get("/u/:shortURL", (req, res) => {
-  const longURL= urlDatabase[req.params.shortURL];
+  const longURL = urlDatabase[req.params.shortURL];
   res.redirect(longURL);
 });
+
+//REDIRECT AFTER DELETING A SHORT URL
+app.post("/urls/:shortURL/delete", (req, res) => {
+  console.log(req);
+  delete urlDatabase[req.params.shortURL];
+  res.redirect('/urls');
+})
+
 
 app.get("/urls.json", (req, res) => {
   res.json(urlDatabase);
 });
 
 app.get("/", (req, res) => {
-  res.send("Hello!");
+  res.redirect('/urls');
 });
 
-app.get("/hello", (req, res) => {
-  res.send("<html><body>Hello <b>World</b></body></html>\n");
-});
+// app.get("/hello", (req, res) => {
+//   res.send("<html><body>Hello <b>World</b></body></html>\n");
+// });
 
 // app.get("/set", (req, res) => {
 //   const a = 1;
