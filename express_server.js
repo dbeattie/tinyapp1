@@ -37,7 +37,7 @@ app.post("/urls", (req, res) => {
 });
 
 app.get("/urls/:shortURL", (req, res) => {
-  let templateVars = { shortURL: req.params.shortURL, longURL: req.params.longURL };
+  let templateVars = { shortURL: req.params.shortURL, longURL: urlDatabase[req.params.shortURL] };
   res.render("urls_show", templateVars);
 });
 
@@ -46,10 +46,21 @@ app.get("/u/:shortURL", (req, res) => {
   res.redirect(longURL);
 });
 
+//REDIRECT AFTER HITTING EDIT BUTTON ON URL Main Page
+app.post("/urls/:shortURL/edit", (req, res) => {
+  let templateVars = { shortURL: req.params.shortURL, longURL: urlDatabase[req.params.shortURL] };
+  res.render("urls_show", templateVars);
+})
+
 //REDIRECT AFTER DELETING A SHORT URL
 app.post("/urls/:shortURL/delete", (req, res) => {
-  console.log(req);
   delete urlDatabase[req.params.shortURL];
+  res.redirect('/urls');
+})
+
+//REDIRECT AFTER UPDATING LONG URL on urls/:shortURL
+app.post("/urls/:id", (req, res) => {
+  urlDatabase[req.params.id] = req.body['longURL'];
   res.redirect('/urls');
 })
 
