@@ -13,32 +13,70 @@ app.use(cookieParser());
 //GENERATES 6 RANDOM CHARACTERS
 function generateRandomString() {
   return Math.random().toString(36).substring(2, 5) + Math.random().toString(36).substring(2, 5);
-}
+};
 
-//THIS IS THE DATA
+//LOOKS UP IF EMAIL EXISTS IN USERS DATABASE
+function emailLookupHelper(email){
+  for (let id in users) {
+    if (users[id].email === email) {
+      return users[id].id;
+    } else {
+      return null;
+    }
+  }  
+};
+
+//VALIDATES IF EMAIL MATCHES PASSWORD
+function validateUser(email, password) {
+  for (let id in users) {
+    if (users[id].email === email && users[id].password === password) {
+      return true;
+    } else {
+      return false;
+    }
+  } 
+};
+//URL DATA
 const urlDatabase = {
   "b2xVn2": "http://www.lighthouselabs.ca",
   "9sm5xK": "http://www.google.com"
 };
 
-//DO I NEED THIS???
-// app.get('', (req, res) => {
-//   let templateVars = {
-//   username: req.cookies["username"],
-//   // ... any other vars
-// };
-//   res.render("urls_index", templateVars);
-// });
+//USER DATA OBJECT of OBJECTS
+const users = { 
+  "userRandomID": {
+    id: "userRandomID", 
+    email: "user@example.com", 
+    password: "1234"
+  },
+ "user2RandomID": {
+    id: "user2RandomID", 
+    email: "user2@example.com", 
+    password: "dishwasher-funk"
+  }
+}
 
+//RENDERS REGISTRATION PAGE
+app.get("/register", (req, res) => {
+  let templateVars = { userId: users, user: users[req.cookies.id]};
+  res.render("register", templateVars);
+});
 
+//RENDERS LOGIN PAGE
+app.get("/login", (req, res) => {
+  let templateVars = { userId: users, user: users[req.cookies.id]};
+  res.render("login", templateVars);
+});
+
+//RENDERS LIST OF URLS or URLS_INDEX
 app.get("/urls", (req, res) => {
-  let templateVars = { urls: urlDatabase, username: req.cookies.username };
+  let templateVars = { urls: urlDatabase, user: users[req.cookies.id]};
   res.render("urls_index", templateVars);
 });
 
-//RENDERS A NEW URLS_ TEMPLATE
+//RENDERS A URLS_NEW TEMPLATE
 app.get("/urls/new", (req, res) => {
-  let templateVars = { username: req.cookies.username }
+  let templateVars = { user: users[req.cookies.id] }
   res.render("urls_new", templateVars);
 });
 
@@ -53,11 +91,11 @@ app.post("/urls", (req, res) => {
 
 //ASSOCIATES ANY SHORT URL DATA WITH THAT ENTIRE KEY AND VALUE FROM MY STORED DATA
 app.get("/urls/:shortURL", (req, res) => {
-  let templateVars = { shortURL: req.params.shortURL, longURL: urlDatabase[req.params.shortURL], username: req.cookies.username };
+  let templateVars = { shortURL: req.params.shortURL, longURL: urlDatabase[req.params.shortURL], user: users[req.cookies.id] };
   res.render("urls_show", templateVars);
 });
 
-//
+//REDIRECTS YOU TO THE LONG URL FROM THIS SHORT URL IF YOU TYPE IT IN MANUALLY EXAMPLE:"/u/gs5las"
 app.get("/u/:shortURL", (req, res) => {
   const longURL = urlDatabase[req.params.shortURL];
   res.redirect(longURL);
@@ -65,7 +103,7 @@ app.get("/u/:shortURL", (req, res) => {
 
 //REDIRECT AFTER HITTING EDIT BUTTON ON URL TO THAT URL SUBPAGE
 app.post("/urls/:shortURL/edit", (req, res) => {
-  let templateVars = { shortURL: req.params.shortURL, longURL: urlDatabase[req.params.shortURL], username: req.cookies.username };
+  let templateVars = { shortURL: req.params.shortURL, longURL: urlDatabase[req.params.shortURL], user: users[req.cookies.id] };
   res.render("urls_show", templateVars);
 })
 
@@ -81,23 +119,59 @@ app.post("/urls/:id", (req, res) => {
   res.redirect('/urls');
 })
 
-//ROUTE TO LOGIN
+//ROUTE AWAY FROM REGISTER PAGE
+app.post("/register", (req, res) => {
+  let newUserObj = {};
+  newUserObj['email'] = req.body['email'];
+  newUserObj['password'] = req.body['password'];
+  
+  let uniqueUserId = generateRandomString(); 
+  newUserObj.id = uniqueUserId;
+  users[uniqueUserId] = newUserObj
+
+  if (newUserObj.email === '' || newUserObj.password === '') {
+    res.status(400).send('400 Error: Bad Request');
+  } else if (emailLookupHelper(newUserObj.email)) {
+    res.status(400).send('400 Error: Bad Request')
+  } else {
+    res.cookie('id', newUserObj.id); //set user_id cookie, should contain the randomly generated id
+    res.redirect('/urls'); //redirect after registration to index page
+  }
+});
+
+//ROUTE AWAY FROM LOGIN PAGE
 app.post("/login", (req, res) => {
-  res.cookie('username', req.body['username']);
-  res.redirect('/urls');
-})
+  
+  let email = req.body['email'];
+  let password = req.body['password'];
+  let uniqueId = emailLookupHelper(email);
+
+  if (!emailLookupHelper(email)) { 
+    res.status(400).send('403 Error: Forbidden');
+  } else if (emailLookupHelper(req.body['email'])) {
+    validateUser(email, password);
+    if (validateUser(email, password) === false) {
+      res.status(400).send('403 Error: Forbidden');
+    } else {
+    res.cookie('id', uniqueId); //set user_id cookie based on the id
+    res.redirect('/urls'); //redirect after registration to index page  
+    }
+  console.log(users.id);
+  }
+}); 
 
 //ROUTE TO LOGOUT
 app.post("/logout", (req, res) => {
-  res.clearCookie('username');
+  res.clearCookie('id');
   res.redirect('/urls');
 })
 
-
+//GET .JSON FILES
 app.get("/urls.json", (req, res) => {
   res.json(urlDatabase);
 });
 
+//REDIRECTS '/' HOME TO URLS INDEX PAGE
 app.get("/", (req, res) => {
   res.redirect('/urls');
 });
@@ -115,6 +189,7 @@ app.get("/", (req, res) => {
 //   res.send(`a = ${a}`);
 //  });
 
+//SERVER IS ON AND LISTENING
 app.listen(PORT, () => {
   console.log(`Example app listening on port ${PORT}!`);
 });
