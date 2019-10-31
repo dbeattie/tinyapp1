@@ -36,10 +36,30 @@ function validateUser(email, password) {
     }
   } 
 };
+
+//VALIDATES USER ACCESS TO URLS ON URLS_INDEX
+function urlsForUser(userId) {
+    matchObj = {};
+    for (let id in urlDatabase) {
+    if (urlDatabase[id].userID === userId) {
+      matchObj[id] = urlDatabase[id];
+    }
+  } 
+  return matchObj;
+};
+
 //URL DATA
+// const urlDatabase = {
+//   "b2xVn2": "http://www.lighthouselabs.ca",
+//   "9sm5xK": "http://www.google.com"
+// };
+
+//NEW DATA OBJECT OF OBJECTS (KEYS CAN'T START WITH NUM)
 const urlDatabase = {
-  "b2xVn2": "http://www.lighthouselabs.ca",
-  "9sm5xK": "http://www.google.com"
+  b6UTxQ: { longURL: "http://www.tsn.ca", userID: "userRandomID" },
+  i3BoGr: { longURL: "http://www.google.ca", userID: "userRandomID" },
+  b2xVn2: { longURL: "http://www.lighthouselabs.ca", userID: "user2@example.com" },
+  sm5xK9: { longURL: "http://jaysfromthecouch.com/", userID: "user2@example.com" }
 };
 
 //USER DATA OBJECT of OBJECTS
@@ -56,6 +76,34 @@ const users = {
   }
 }
 
+//MIDDLEWARE TO GRANT PERMISSION WITH COOKIE TO URLS PAGE
+app.use("/urls", (req, res, next) => {
+  if (req.cookies.id) {
+   next();
+  } else {
+   res.redirect('/login');
+  }
+ });
+
+ //MIDDLEWARE TO GRANT PERMISSION WITH COOKIE TO URLS/NEW PAGE
+app.use("/urls/new", (req, res, next) => {
+  if (req.cookies.id) {
+   next();
+  } else {
+   res.redirect('/login');
+  }
+ });
+
+ //MIDDLEWARE TO GRANT PERMISSION TO EDIT/ INDIVIDUAL URL PAGE
+ app.use("/urls/:shortURL", (req, res, next) => {
+  if (req.cookies.id && urlDatabase[req.params.shortURL].userID === req.cookies.id) {
+    next();
+  } else {
+    res.redirect('/login');
+  }
+ });
+
+
 //RENDERS REGISTRATION PAGE
 app.get("/register", (req, res) => {
   let templateVars = { userId: users, user: users[req.cookies.id]};
@@ -68,9 +116,10 @@ app.get("/login", (req, res) => {
   res.render("login", templateVars);
 });
 
-//RENDERS LIST OF URLS or URLS_INDEX
+//RENDERS THE LIST OF URLS (AKA URLS_INDEX)
 app.get("/urls", (req, res) => {
-  let templateVars = { urls: urlDatabase, user: users[req.cookies.id]};
+  let urls = (urlsForUser(req.cookies.id));
+  let templateVars = { urls: urls, user: users[req.cookies.id]};
   res.render("urls_index", templateVars);
 });
 
@@ -80,36 +129,41 @@ app.get("/urls/new", (req, res) => {
   res.render("urls_new", templateVars);
 });
 
-//CREATES A RANDOM 6 CHARACTER FUNCTION THAT CAN PASS INTO THE SHORTURL PARAMETER
+//USES RANDOM CHARACTER FUNCTION TO PASS GENERATED ID INTO THE SHORTURL PARAMETER
 app.post("/urls", (req, res) => {
-  console.log(req.body);  // Log the POST request body to the console
+  //console.log(req.body);  // Log the POST request body to the console
+  let newUrlObj = {}
+  let shortUrlKey = generateRandomString();
   
-  let key = generateRandomString();
-  urlDatabase[key] = req.body.longURL;
+  newUrlObj['longURL'] = req.body.longURL;
+  newUrlObj['userID'] = req.cookies.id; 
+  urlDatabase[shortUrlKey] = newUrlObj;
+
   res.redirect('/urls');
 });
 
 //ASSOCIATES ANY SHORT URL DATA WITH THAT ENTIRE KEY AND VALUE FROM MY STORED DATA
 app.get("/urls/:shortURL", (req, res) => {
-  let templateVars = { shortURL: req.params.shortURL, longURL: urlDatabase[req.params.shortURL], user: users[req.cookies.id] };
+  let templateVars = { shortURL: req.params.shortURL, longURL: urlDatabase[req.params.shortURL].longURL, user: users[req.cookies.id] };
   res.render("urls_show", templateVars);
 });
 
 //REDIRECTS YOU TO THE LONG URL FROM THIS SHORT URL IF YOU TYPE IT IN MANUALLY EXAMPLE:"/u/gs5las"
 app.get("/u/:shortURL", (req, res) => {
-  const longURL = urlDatabase[req.params.shortURL];
+  const longURL = urlDatabase[req.params.shortURL].longURL;
   res.redirect(longURL);
 });
 
 //REDIRECT AFTER HITTING EDIT BUTTON ON URL TO THAT URL SUBPAGE
 app.post("/urls/:shortURL/edit", (req, res) => {
-  let templateVars = { shortURL: req.params.shortURL, longURL: urlDatabase[req.params.shortURL], user: users[req.cookies.id] };
+  let templateVars = { shortURL: req.params.shortURL, longURL: urlDatabase[req.params.shortURL].longURL, user: users[req.cookies.id] };
   res.render("urls_show", templateVars);
 })
 
 //REDIRECT AFTER DELETING AN ENTIRE URL FROM DATABASE
 app.post("/urls/:shortURL/delete", (req, res) => {
   delete urlDatabase[req.params.shortURL];
+  console.log(urlDatabase);
   res.redirect('/urls');
 })
 
@@ -127,7 +181,7 @@ app.post("/register", (req, res) => {
   
   let uniqueUserId = generateRandomString(); 
   newUserObj.id = uniqueUserId;
-  users[uniqueUserId] = newUserObj
+  users[uniqueUserId] = newUserObj;
 
   if (newUserObj.email === '' || newUserObj.password === '') {
     res.status(400).send('400 Error: Bad Request');
