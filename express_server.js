@@ -10,6 +10,8 @@ app.use(bodyParser.urlencoded({extended: true}));
 const cookieParser = require('cookie-parser')
 app.use(cookieParser());
 
+const bcrypt = require('bcrypt');
+
 //GENERATES 6 RANDOM CHARACTERS
 function generateRandomString() {
   return Math.random().toString(36).substring(2, 5) + Math.random().toString(36).substring(2, 5);
@@ -20,21 +22,19 @@ function emailLookupHelper(email){
   for (let id in users) {
     if (users[id].email === email) {
       return users[id].id;
-    } else {
-      return null;
     }
-  }  
+  }
+  return null;  
 };
 
 //VALIDATES IF EMAIL MATCHES PASSWORD
 function validateUser(email, password) {
   for (let id in users) {
-    if (users[id].email === email && users[id].password === password) {
+    if (users[id].email === email && bcrypt.compareSync(password, users[id].hashedPassword)) {
       return true;
-    } else {
-      return false;
     }
-  } 
+  }
+  return false; 
 };
 
 //VALIDATES USER ACCESS TO URLS ON URLS_INDEX
@@ -62,19 +62,33 @@ const urlDatabase = {
   sm5xK9: { longURL: "http://jaysfromthecouch.com/", userID: "user2@example.com" }
 };
 
-//USER DATA OBJECT of OBJECTS
+//NEW USER DATA OBJECT OF OBJECTS WITH HASHED PASSWORDS
 const users = { 
   "userRandomID": {
     id: "userRandomID", 
     email: "user@example.com", 
-    password: "1234"
+    hashedPassword: "$2b$10$825qzFNgJ7IKFNh2JIG0suy1GbWWqvQJUCkRdTknI.a9mRqxeqkLa"
   },
  "user2RandomID": {
     id: "user2RandomID", 
     email: "user2@example.com", 
-    password: "dishwasher-funk"
+    hashedPassword: "$2b$10$vz/uNS1o/VvJIz74SDpQM.URo9NGPH7KqAB3rt/9mM2CrUcxYOMMS"
   }
 }
+
+// //OLD USER DATA OBJECT OF OBJECTS WITH PLAINTEXT PASSWORDS
+// const users1 = { 
+//   "userRandomID": {
+//     id: "userRandomID", 
+//     email: "user@example.com", 
+//     password: "1234"
+//   },
+//  "user2RandomID": {
+//     id: "user2RandomID", 
+//     email: "user2@example.com", 
+//     password: "dishwasher-funk"
+//   }
+// }
 
 //MIDDLEWARE TO GRANT PERMISSION WITH COOKIE TO URLS PAGE
 app.use("/urls", (req, res, next) => {
@@ -86,13 +100,13 @@ app.use("/urls", (req, res, next) => {
  });
 
  //MIDDLEWARE TO GRANT PERMISSION WITH COOKIE TO URLS/NEW PAGE
-app.use("/urls/new", (req, res, next) => {
-  if (req.cookies.id) {
-   next();
-  } else {
-   res.redirect('/login');
-  }
- });
+// app.use("/urls/new", (req, res, next) => {
+//   if (req.cookies.id) {
+//    next();
+//   } else {
+//    res.redirect('/login');
+//   }
+//  });
 
  //MIDDLEWARE TO GRANT PERMISSION TO EDIT/ INDIVIDUAL URL PAGE
  app.use("/urls/:shortURL", (req, res, next) => {
@@ -175,19 +189,21 @@ app.post("/urls/:id", (req, res) => {
 
 //ROUTE AWAY FROM REGISTER PAGE
 app.post("/register", (req, res) => {
-  let newUserObj = {};
-  newUserObj['email'] = req.body['email'];
-  newUserObj['password'] = req.body['password'];
-  
-  let uniqueUserId = generateRandomString(); 
-  newUserObj.id = uniqueUserId;
-  users[uniqueUserId] = newUserObj;
-
-  if (newUserObj.email === '' || newUserObj.password === '') {
+  if (req.body.email === '' || req.body.password === '') {
     res.status(400).send('400 Error: Bad Request');
-  } else if (emailLookupHelper(newUserObj.email)) {
+  } else if (emailLookupHelper(req.body.email)) {
     res.status(400).send('400 Error: Bad Request')
   } else {
+    const hashedPassword = bcrypt.hashSync(req.body['password'], 10);
+
+    let newUserObj = {};
+    let uniqueUserId = generateRandomString(); 
+    newUserObj.id = uniqueUserId;
+    newUserObj['email'] = req.body['email'];
+    newUserObj['hashedPassword'] = hashedPassword;
+
+    users[uniqueUserId] = newUserObj;
+
     res.cookie('id', newUserObj.id); //set user_id cookie, should contain the randomly generated id
     res.redirect('/urls'); //redirect after registration to index page
   }
@@ -197,20 +213,19 @@ app.post("/register", (req, res) => {
 app.post("/login", (req, res) => {
   
   let email = req.body['email'];
-  let password = req.body['password'];
+  let password = req.body['password'];  
   let uniqueId = emailLookupHelper(email);
 
   if (!emailLookupHelper(email)) { 
     res.status(400).send('403 Error: Forbidden');
-  } else if (emailLookupHelper(req.body['email'])) {
+  } else if (emailLookupHelper(email)) {
     validateUser(email, password);
-    if (validateUser(email, password) === false) {
+    if (!validateUser(email, password)) {
       res.status(400).send('403 Error: Forbidden');
     } else {
-    res.cookie('id', uniqueId); //set user_id cookie based on the id
-    res.redirect('/urls'); //redirect after registration to index page  
+      res.cookie('id', uniqueId); //set user_id cookie based on the id
+      res.redirect('/urls'); //redirect after registration to index page  
     }
-  console.log(users.id);
   }
 }); 
 
